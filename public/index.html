@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="card center">
+  <h2>Join Chat</h2>
+
+  <input id="name" placeholder="Your name">
+
+  <select id="country">
+    <option value="">Select country</option>
+    <option>Lebanon</option>
+    <option>Indonesia</option>
+    <option>USA</option>
+    <option>Germany</option>
+  </select>
+
+  <button id="joinBtn">Enter Chat</button>
+</div>
+
+<!-- CHAT -->
+<div id="chat" class="hidden">
+  <div class="top">Live Chat</div>
+
+  <div id="messages"></div>
+  <div id="typing" class="typing"></div>
+
+  <div class="inputBox">
+    <input id="msg" placeholder="Type message...">
+    <button id="sendBtn">Send</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
