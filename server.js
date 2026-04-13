@@ -4,28 +4,45 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+
+// ✅ Stable socket setup
+const io = new Server(server, {
     cors: {
         origin: "*"
     }
 });
 
-// ✅ FIX: serve files from current folder
+// ✅ Serve files from current folder
 app.use(express.static(__dirname));
 
 const users = new Map();
 
 io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
 
+    // ======================
+    // JOIN
+    // ======================
     socket.on("join", ({ name, country }) => {
         users.set(socket.id, { name, country });
+
+        console.log(`${name} joined from ${country}`);
 
         io.emit("system", `${name} from ${country} joined the chat`);
     });
 
+    // ======================
+    // MESSAGE
+    // ======================
     socket.on("message", (msg) => {
         const user = users.get(socket.id);
-        if (!user) return;
+
+        if (!user) {
+            console.log("User not found for message");
+            return;
+        }
+
+        console.log("Message:", msg);
 
         io.emit("message", {
             name: user.name,
@@ -34,6 +51,9 @@ io.on("connection", (socket) => {
         });
     });
 
+    // ======================
+    // TYPING
+    // ======================
     socket.on("typing", () => {
         const user = users.get(socket.id);
         if (!user) return;
@@ -45,15 +65,24 @@ io.on("connection", (socket) => {
         socket.broadcast.emit("stopTyping");
     });
 
+    // ======================
+    // DISCONNECT
+    // ======================
     socket.on("disconnect", () => {
         const user = users.get(socket.id);
+
         if (user) {
             io.emit("system", `${user.name} left the chat`);
             users.delete(socket.id);
         }
+
+        console.log("User disconnected:", socket.id);
     });
 });
 
+// ======================
+// START SERVER
+// ======================
 server.listen(3000, () => {
     console.log("Running on http://localhost:3000");
 });
