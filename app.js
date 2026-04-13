@@ -4,7 +4,7 @@ let mode = "";
 let currentRoom = "";
 let myId = "";
 
-// DOM elements (declare first)
+// DOM elements
 let nameInput, countryInput, countryModal, countryOptions;
 let menu, login, chat, chatTitle, messages, msgInput, welcome;
 let usersDiv, serversDiv;
@@ -31,7 +31,7 @@ const countries = [
 // =====================
 document.addEventListener("DOMContentLoaded", () => {
 
-    // GET ELEMENTS
+    // GET ELEMENTS FIRST
     nameInput = document.getElementById("name");
     countryInput = document.getElementById("country");
     countryModal = document.getElementById("countryModal");
@@ -46,6 +46,11 @@ document.addEventListener("DOMContentLoaded", () => {
     welcome = document.getElementById("welcome");
     usersDiv = document.getElementById("users");
     serversDiv = document.getElementById("servers");
+
+    // ✅ CLICK HANDLER (FIXED)
+    countryInput.addEventListener("click", () => {
+        openCountryPicker();
+    });
 
     // SEARCH
     const search = document.getElementById("countrySearch");
@@ -65,23 +70,14 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =====================
-// COUNTRY PICKER (FIXED)
+// COUNTRY PICKER
 // =====================
 function openCountryPicker() {
-    if (!countryOptions) return;
-
     countryModal.classList.remove("hidden");
-
-    // small delay ensures DOM is ready
-    setTimeout(() => {
-        renderCountries();
-    }, 0);
+    renderCountries();
 }
-window.openCountryPicker = openCountryPicker;
 
 function renderCountries(filter = "") {
-    if (!countryOptions) return;
-
     countryOptions.innerHTML = "";
 
     const filtered = countries.filter(c =>
@@ -111,8 +107,8 @@ function renderCountries(filter = "") {
 // JOIN
 // =====================
 function join() {
-    const name = nameInput?.value.trim();
-    const country = countryInput?.value.trim();
+    const name = nameInput.value.trim();
+    const country = countryInput.value.trim();
 
     if (!name || !country) {
         alert("Fill all fields!");
@@ -213,6 +209,7 @@ socket.on("publicMessage", addMsg);
 socket.on("privateMessage", addMsg);
 socket.on("serverMessage", addMsg);
 
+// USERS
 socket.on("userList", (users) => {
     usersDiv.innerHTML = "";
 
@@ -231,12 +228,14 @@ socket.on("userList", (users) => {
     });
 });
 
+// PRIVATE JOIN
 socket.on("privateJoined", (room) => {
     currentRoom = room;
     mode = "private";
     openChat("Private Chat");
 });
 
+// SERVERS
 socket.on("serverList", (servers) => {
     serversDiv.innerHTML = "";
 
