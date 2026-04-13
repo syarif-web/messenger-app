@@ -21,7 +21,7 @@ function join() {
 }
 window.join = join;
 
-// NAV
+// NAVIGATION
 function openPublic() {
     mode = "public";
     openChat("Public Chat");
@@ -29,13 +29,27 @@ function openPublic() {
 window.openPublic = openPublic;
 
 function openPrivate() {
-    mode = "select-private";
+    mode = "private";
     usersDiv.classList.remove("hidden");
+    serversDiv.classList.add("hidden");
     socket.emit("joinAppRefresh");
 }
 window.openPrivate = openPrivate;
 
-// CHAT
+function openServer() {
+    mode = "server-select";
+    serversDiv.classList.remove("hidden");
+    usersDiv.classList.add("hidden");
+}
+window.openServer = openServer;
+
+function back() {
+    chat.classList.add("hidden");
+    menu.classList.remove("hidden");
+}
+window.back = back;
+
+// OPEN CHAT
 function openChat(title) {
     menu.classList.add("hidden");
     chat.classList.remove("hidden");
@@ -43,17 +57,28 @@ function openChat(title) {
     messages.innerHTML = "";
 }
 
-// SEND
+// SEND MESSAGE
 function send() {
-    const msg = msgInput.value;
+    const msg = msgInput.value.trim();
     if (!msg) return;
 
-    socket.emit("publicMessage", msg);
+    if (mode === "public") {
+        socket.emit("publicMessage", msg);
+    }
+
+    if (mode === "private") {
+        socket.emit("privateMessage", { room: currentRoom, msg });
+    }
+
+    if (mode === "server") {
+        socket.emit("serverMessage", { serverName: currentRoom, msg });
+    }
+
     msgInput.value = "";
 }
 window.send = send;
 
-// MESSAGE
+// ADD MESSAGE
 function addMsg(data) {
     const div = document.createElement("div");
     div.className = "msg " + (data.id === myId ? "me" : "other");
@@ -61,39 +86,60 @@ function addMsg(data) {
     messages.appendChild(div);
 }
 
-// SOCKET
+// SOCKET EVENTS
 socket.on("connect", () => myId = socket.id);
+
 socket.on("publicMessage", addMsg);
+socket.on("privateMessage", addMsg);
+socket.on("serverMessage", addMsg);
 
-// COUNTRY
-const countries = ["Indonesia","United States","Japan","Germany","France"];
+// USERS LIST
+socket.on("userList", (users) => {
+    usersDiv.innerHTML = "";
 
-function openCountryPicker() {
-    countryModal.classList.remove("hidden");
-    renderCountries();
-}
-window.openCountryPicker = openCountryPicker;
+    Object.entries(users).forEach(([id, user]) => {
+        if (id === myId) return;
 
-function renderCountries(filter="") {
-    countryOptions.innerHTML = "";
-
-    countries
-    .filter(c=>c.toLowerCase().includes(filter.toLowerCase()))
-    .forEach(c=>{
         const div = document.createElement("div");
-        div.className="country-item";
-        div.innerText=c;
+        div.className = "country-item";
+        div.innerText = user.name + " (" + user.country + ")";
 
-        div.onclick=()=>{
-            countryInput.value=c;
-            countryModal.classList.add("hidden");
+        div.onclick = () => {
+            socket.emit("joinPrivate", { target: id });
         };
 
-        countryOptions.appendChild(div);
+        usersDiv.appendChild(div);
     });
-}
+});
 
-// FIX EVENTS
+// PRIVATE JOIN
+socket.on("privateJoined", (room) => {
+    currentRoom = room;
+    mode = "private";
+    openChat("Private Chat");
+});
+
+// SERVERS
+socket.on("serverList", (servers) => {
+    serversDiv.innerHTML = "";
+
+    servers.forEach(s => {
+        const div = document.createElement("div");
+        div.className = "country-item";
+        div.innerText = s;
+
+        div.onclick = () => {
+            currentRoom = s;
+            mode = "server";
+            socket.emit("joinServer", s);
+            openChat("Server: " + s);
+        };
+
+        serversDiv.appendChild(div);
+    });
+});
+
+// DOM
 document.addEventListener("DOMContentLoaded", () => {
     window.nameInput = document.getElementById("name");
     window.countryInput = document.getElementById("country");
@@ -107,14 +153,5 @@ document.addEventListener("DOMContentLoaded", () => {
     window.msgInput = document.getElementById("msg");
     window.welcome = document.getElementById("welcome");
     window.usersDiv = document.getElementById("users");
-
-    document.getElementById("countrySearch").addEventListener("input", e=>{
-        renderCountries(e.target.value);
-    });
-
-    countryModal.addEventListener("click", e=>{
-        if(e.target.id==="countryModal"){
-            countryModal.classList.add("hidden");
-        }
-    });
+    window.serversDiv = document.getElementById("servers");
 });
