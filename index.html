@@ -12,13 +12,12 @@
   <h2>Enter</h2>
 
   <input id="name" placeholder="Name">
-
   <input id="country" placeholder="Select country..." readonly onclick="openCountryPicker()">
 
   <button onclick="join()">Enter</button>
 </div>
 
-<!-- COUNTRY MODAL -->
+<!-- COUNTRY -->
 <div id="countryModal" class="modal hidden">
   <div class="modal-sheet">
     <input id="countrySearch" placeholder="Search country...">
@@ -32,9 +31,10 @@
 
   <button onclick="openPublic()">Public</button>
   <button onclick="openPrivate()">Private</button>
-  <button onclick="openServer()">Server</button>
+  <button onclick="openServer()">Servers</button>
 
   <div id="users" class="hidden"></div>
+  <div id="servers" class="hidden"></div>
 </div>
 
 <!-- CHAT -->
