@@ -16,6 +16,14 @@ const sendBtn = document.getElementById("sendBtn");
 const typingDiv = document.getElementById("typing");
 
 // =======================
+// CONNECT
+// =======================
+socket.on("connect", () => {
+    myId = socket.id;
+    console.log("Connected:", myId);
+});
+
+// =======================
 // JOIN
 // =======================
 joinBtn.onclick = () => {
@@ -33,7 +41,7 @@ joinBtn.onclick = () => {
     chat.classList.remove("hidden");
 };
 
-// ✅ FIX: press ENTER to join
+// ✅ Enter to join
 nameInput.addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
         joinBtn.click();
@@ -41,7 +49,7 @@ nameInput.addEventListener("keypress", (e) => {
 });
 
 // =======================
-// SEND
+// SEND MESSAGE
 // =======================
 sendBtn.onclick = sendMessage;
 
@@ -58,24 +66,25 @@ function sendMessage() {
     const msg = msgInput.value.trim();
     if (!msg) return;
 
+    console.log("Sending:", msg);
+
     socket.emit("message", msg);
     msgInput.value = "";
 }
 
 // =======================
-// RECEIVE
+// RECEIVE MESSAGES
 // =======================
-socket.on("connect", () => {
-    myId = socket.id;
-});
-
 socket.on("message", (data) => {
+    console.log("Received:", data);
+
     const div = document.createElement("div");
     div.className = "msg";
-    div.innerText = data.name + ": " + data.msg;
+    div.innerText = `${data.name}: ${data.msg}`;
+
     messages.appendChild(div);
 
-    // ✅ BONUS: auto scroll
+    // ✅ auto scroll
     messages.scrollTop = messages.scrollHeight;
 });
 
@@ -83,9 +92,10 @@ socket.on("system", (msg) => {
     const div = document.createElement("div");
     div.className = "system";
     div.innerText = msg;
+
     messages.appendChild(div);
 
-    // ✅ BONUS: auto scroll
+    // ✅ auto scroll
     messages.scrollTop = messages.scrollHeight;
 });
 
