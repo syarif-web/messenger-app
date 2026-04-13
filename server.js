@@ -1,105 +1,157 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
+const socket = io();
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+let mode = "";
+let currentRoom = "";
+let myId = "";
 
-app.use(express.static("public"));
+// JOIN
+function join() {
+    const name = nameInput.value.trim();
+    const country = countryInput.value.trim();
 
-let users = {};
-let servers = ["Global", "Gaming", "Indonesia"];
+    if (!name || !country) return alert("Fill all fields!");
 
-io.on("connection", (socket) => {
+    socket.emit("joinApp", { name, country }, (res) => {
+        if (!res.success) return alert(res.message);
 
-    // JOIN
-    socket.on("joinApp", ({ name, country }, callback) => {
-        const taken = Object.values(users).some(u => u.name === name);
-
-        if (taken) {
-            return callback({ success: false, message: "Name already taken" });
-        }
-
-        users[socket.id] = { name, country };
-
-        callback({ success: true });
-
-        io.emit("userList", users);
-        socket.emit("serverList", servers);
+        login.classList.add("hidden");
+        menu.classList.remove("hidden");
+        welcome.innerText = `Hi ${name} from ${country}`;
     });
+}
+window.join = join;
 
-    // REFRESH USERS
-    socket.on("joinAppRefresh", () => {
-        socket.emit("userList", users);
-    });
+// NAVIGATION
+function openPublic() {
+    mode = "public";
+    openChat("Public Chat");
+}
+window.openPublic = openPublic;
 
-    // PUBLIC
-    socket.on("publicMessage", (msg) => {
-        io.emit("publicMessage", {
-            user: users[socket.id],
-            msg,
-            id: socket.id
-        });
-    });
+function openPrivate() {
+    mode = "private";
+    usersDiv.classList.remove("hidden");
+    serversDiv.classList.add("hidden");
+    socket.emit("joinAppRefresh");
+}
+window.openPrivate = openPrivate;
 
-    // PRIVATE
-    socket.on("joinPrivate", ({ target }) => {
-        const room = [socket.id, target].sort().join("-");
+function openServer() {
+    mode = "server-select";
+    serversDiv.classList.remove("hidden");
+    usersDiv.classList.add("hidden");
+}
+window.openServer = openServer;
 
-        socket.join(room);
+function back() {
+    chat.classList.add("hidden");
+    menu.classList.remove("hidden");
+}
+window.back = back;
 
-        const targetSocket = io.sockets.sockets.get(target);
-        if (targetSocket) targetSocket.join(room);
+// OPEN CHAT
+function openChat(title) {
+    menu.classList.add("hidden");
+    chat.classList.remove("hidden");
+    chatTitle.innerText = title;
+    messages.innerHTML = "";
+}
 
-        io.to(room).emit("privateJoined", room);
-    });
+// SEND MESSAGE
+function send() {
+    const msg = msgInput.value.trim();
+    if (!msg) return;
 
-    socket.on("privateMessage", ({ room, msg }) => {
-        if (!room) return;
+    if (mode === "public") {
+        socket.emit("publicMessage", msg);
+    }
 
-        io.to(room).emit("privateMessage", {
-            user: users[socket.id],
-            msg,
-            id: socket.id,
-            room
-        });
-    });
+    if (mode === "private") {
+        socket.emit("privateMessage", { room: currentRoom, msg });
+    }
 
-    // SERVER ROOM
-    socket.on("joinServer", (serverName) => {
-        socket.join(serverName);
-        socket.emit("joinedServer", serverName);
-    });
+    if (mode === "server") {
+        socket.emit("serverMessage", { serverName: currentRoom, msg });
+    }
 
-    socket.on("serverMessage", ({ serverName, msg }) => {
-        io.to(serverName).emit("serverMessage", {
-            user: users[socket.id],
-            msg,
-            id: socket.id
-        });
-    });
+    msgInput.value = "";
+}
+window.send = send;
 
-    // TYPING
-    socket.on("typing", ({ room }) => {
-        socket.to(room).emit("typing", { user: users[socket.id] });
-    });
+// ADD MESSAGE
+function addMsg(data) {
+    const div = document.createElement("div");
+    div.className = "msg " + (data.id === myId ? "me" : "other");
+    div.innerText = data.user.name + ": " + data.msg;
+    messages.appendChild(div);
+}
 
-    socket.on("stopTyping", ({ room }) => {
-        socket.to(room).emit("stopTyping");
-    });
+// SOCKET EVENTS
+socket.on("connect", () => myId = socket.id);
 
-    socket.on("seen", ({ room }) => {
-        socket.to(room).emit("seen");
-    });
+socket.on("publicMessage", addMsg);
+socket.on("privateMessage", addMsg);
+socket.on("serverMessage", addMsg);
 
-    // DISCONNECT
-    socket.on("disconnect", () => {
-        delete users[socket.id];
-        io.emit("userList", users);
+// USERS LIST
+socket.on("userList", (users) => {
+    usersDiv.innerHTML = "";
+
+    Object.entries(users).forEach(([id, user]) => {
+        if (id === myId) return;
+
+        const div = document.createElement("div");
+        div.className = "country-item";
+        div.innerText = user.name + " (" + user.country + ")";
+
+        div.onclick = () => {
+            socket.emit("joinPrivate", { target: id });
+        };
+
+        usersDiv.appendChild(div);
     });
 });
 
-server.listen(3000, () => {
-    console.log("Running on http://localhost:3000");
+// PRIVATE JOIN
+socket.on("privateJoined", (room) => {
+    currentRoom = room;
+    mode = "private";
+    openChat("Private Chat");
+});
+
+// SERVERS
+socket.on("serverList", (servers) => {
+    serversDiv.innerHTML = "";
+
+    servers.forEach(s => {
+        const div = document.createElement("div");
+        div.className = "country-item";
+        div.innerText = s;
+
+        div.onclick = () => {
+            currentRoom = s;
+            mode = "server";
+            socket.emit("joinServer", s);
+            openChat("Server: " + s);
+        };
+
+        serversDiv.appendChild(div);
+    });
+});
+
+// DOM
+document.addEventListener("DOMContentLoaded", () => {
+    window.nameInput = document.getElementById("name");
+    window.countryInput = document.getElementById("country");
+    window.countryModal = document.getElementById("countryModal");
+    window.countryOptions = document.getElementById("countryOptions");
+    window.menu = document.getElementById("menu");
+    window.login = document.getElementById("login");
+    window.chat = document.getElementById("chat");
+    window.chatTitle = document.getElementById("chatTitle");
+    window.messages = document.getElementById("messages");
+    window.msgInput = document.getElementById("msg");
+    window.welcome = document.getElementById("welcome");
+    window.usersDiv = document.getElementById("users");
+    window.serversDiv = document.getElementById("servers");
 });
