@@ -1,157 +1,155 @@
-const socket = io();
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
 
-let mode = "";
-let currentRoom = "";
-let myId = "";
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 
-// JOIN
-function join() {
-    const name = nameInput.value.trim();
-    const country = countryInput.value.trim();
+// STATIC
+app.use(express.static("public"));
 
-    if (!name || !country) return alert("Fill all fields!");
+// DATA
+const users = new Map(); // socket.id -> { name, country }
+const servers = ["Global", "Gaming", "Indonesia"];
 
-    socket.emit("joinApp", { name, country }, (res) => {
-        if (!res.success) return alert(res.message);
+// HELPERS
+function getUser(socket) {
+    return users.get(socket.id);
+}
 
-        login.classList.add("hidden");
-        menu.classList.remove("hidden");
-        welcome.innerText = `Hi ${name} from ${country}`;
+function broadcastUsers() {
+    const obj = Object.fromEntries(users);
+    io.emit("userList", obj);
+}
+
+// SOCKET CONNECTION
+io.on("connection", (socket) => {
+
+    console.log("User connected:", socket.id);
+
+    // =========================
+    // JOIN APP
+    // =========================
+    socket.on("joinApp", ({ name, country }, callback) => {
+        if (!name || !country) {
+            return callback({ success: false, message: "Missing data" });
+        }
+
+        const nameTaken = [...users.values()].some(u => u.name === name);
+        if (nameTaken) {
+            return callback({ success: false, message: "Name already taken" });
+        }
+
+        users.set(socket.id, { name, country });
+
+        callback({ success: true });
+
+        broadcastUsers();
+        socket.emit("serverList", servers);
     });
-}
-window.join = join;
 
-// NAVIGATION
-function openPublic() {
-    mode = "public";
-    openChat("Public Chat");
-}
-window.openPublic = openPublic;
+    // =========================
+    // REFRESH USERS
+    // =========================
+    socket.on("joinAppRefresh", () => {
+        broadcastUsers();
+    });
 
-function openPrivate() {
-    mode = "private";
-    usersDiv.classList.remove("hidden");
-    serversDiv.classList.add("hidden");
-    socket.emit("joinAppRefresh");
-}
-window.openPrivate = openPrivate;
+    // =========================
+    // PUBLIC CHAT
+    // =========================
+    socket.on("publicMessage", (msg) => {
+        const user = getUser(socket);
+        if (!user || !msg) return;
 
-function openServer() {
-    mode = "server-select";
-    serversDiv.classList.remove("hidden");
-    usersDiv.classList.add("hidden");
-}
-window.openServer = openServer;
+        io.emit("publicMessage", {
+            user,
+            msg,
+            id: socket.id
+        });
+    });
 
-function back() {
-    chat.classList.add("hidden");
-    menu.classList.remove("hidden");
-}
-window.back = back;
+    // =========================
+    // PRIVATE CHAT
+    // =========================
+    socket.on("joinPrivate", ({ target }) => {
+        if (!target) return;
 
-// OPEN CHAT
-function openChat(title) {
-    menu.classList.add("hidden");
-    chat.classList.remove("hidden");
-    chatTitle.innerText = title;
-    messages.innerHTML = "";
-}
+        const room = [socket.id, target].sort().join("-");
 
-// SEND MESSAGE
-function send() {
-    const msg = msgInput.value.trim();
-    if (!msg) return;
+        socket.join(room);
 
-    if (mode === "public") {
-        socket.emit("publicMessage", msg);
-    }
+        const targetSocket = io.sockets.sockets.get(target);
+        if (targetSocket) {
+            targetSocket.join(room);
+        }
 
-    if (mode === "private") {
-        socket.emit("privateMessage", { room: currentRoom, msg });
-    }
+        io.to(room).emit("privateJoined", room);
+    });
 
-    if (mode === "server") {
-        socket.emit("serverMessage", { serverName: currentRoom, msg });
-    }
+    socket.on("privateMessage", ({ room, msg }) => {
+        const user = getUser(socket);
+        if (!room || !msg || !user) return;
 
-    msgInput.value = "";
-}
-window.send = send;
+        io.to(room).emit("privateMessage", {
+            user,
+            msg,
+            id: socket.id,
+            room
+        });
+    });
 
-// ADD MESSAGE
-function addMsg(data) {
-    const div = document.createElement("div");
-    div.className = "msg " + (data.id === myId ? "me" : "other");
-    div.innerText = data.user.name + ": " + data.msg;
-    messages.appendChild(div);
-}
+    // =========================
+    // SERVER ROOMS
+    // =========================
+    socket.on("joinServer", (serverName) => {
+        if (!servers.includes(serverName)) return;
 
-// SOCKET EVENTS
-socket.on("connect", () => myId = socket.id);
+        socket.join(serverName);
 
-socket.on("publicMessage", addMsg);
-socket.on("privateMessage", addMsg);
-socket.on("serverMessage", addMsg);
+        socket.emit("joinedServer", serverName);
+    });
 
-// USERS LIST
-socket.on("userList", (users) => {
-    usersDiv.innerHTML = "";
+    socket.on("serverMessage", ({ serverName, msg }) => {
+        const user = getUser(socket);
+        if (!serverName || !msg || !user) return;
 
-    Object.entries(users).forEach(([id, user]) => {
-        if (id === myId) return;
+        io.to(serverName).emit("serverMessage", {
+            user,
+            msg,
+            id: socket.id
+        });
+    });
 
-        const div = document.createElement("div");
-        div.className = "country-item";
-        div.innerText = user.name + " (" + user.country + ")";
+    // =========================
+    // OPTIONAL FEATURES
+    // =========================
+    socket.on("typing", ({ room }) => {
+        socket.to(room).emit("typing", { user: getUser(socket) });
+    });
 
-        div.onclick = () => {
-            socket.emit("joinPrivate", { target: id });
-        };
+    socket.on("stopTyping", ({ room }) => {
+        socket.to(room).emit("stopTyping");
+    });
 
-        usersDiv.appendChild(div);
+    socket.on("seen", ({ room }) => {
+        socket.to(room).emit("seen");
+    });
+
+    // =========================
+    // DISCONNECT
+    // =========================
+    socket.on("disconnect", () => {
+        console.log("User disconnected:", socket.id);
+
+        users.delete(socket.id);
+        broadcastUsers();
     });
 });
 
-// PRIVATE JOIN
-socket.on("privateJoined", (room) => {
-    currentRoom = room;
-    mode = "private";
-    openChat("Private Chat");
-});
-
-// SERVERS
-socket.on("serverList", (servers) => {
-    serversDiv.innerHTML = "";
-
-    servers.forEach(s => {
-        const div = document.createElement("div");
-        div.className = "country-item";
-        div.innerText = s;
-
-        div.onclick = () => {
-            currentRoom = s;
-            mode = "server";
-            socket.emit("joinServer", s);
-            openChat("Server: " + s);
-        };
-
-        serversDiv.appendChild(div);
-    });
-});
-
-// DOM
-document.addEventListener("DOMContentLoaded", () => {
-    window.nameInput = document.getElementById("name");
-    window.countryInput = document.getElementById("country");
-    window.countryModal = document.getElementById("countryModal");
-    window.countryOptions = document.getElementById("countryOptions");
-    window.menu = document.getElementById("menu");
-    window.login = document.getElementById("login");
-    window.chat = document.getElementById("chat");
-    window.chatTitle = document.getElementById("chatTitle");
-    window.messages = document.getElementById("messages");
-    window.msgInput = document.getElementById("msg");
-    window.welcome = document.getElementById("welcome");
-    window.usersDiv = document.getElementById("users");
-    window.serversDiv = document.getElementById("servers");
+// START SERVER
+const PORT = 3000;
+server.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
 });
