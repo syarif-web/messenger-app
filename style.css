@@ -97,3 +97,7 @@ button {
 .country-item:hover {
   background:#eee;
 }
+
+#users, #servers {
+  margin-top: 10px;
+}
