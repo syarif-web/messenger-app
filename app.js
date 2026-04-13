@@ -4,12 +4,115 @@ let mode = "";
 let currentRoom = "";
 let myId = "";
 
+// DOM elements (declare first)
+let nameInput, countryInput, countryModal, countryOptions;
+let menu, login, chat, chatTitle, messages, msgInput, welcome;
+let usersDiv, serversDiv;
+
+// =====================
+// COUNTRY LIST
+// =====================
+const countries = [
+    "Indonesia",
+    "United States",
+    "Japan",
+    "Germany",
+    "France",
+    "Lebanon",
+    "Brazil",
+    "Canada",
+    "UK",
+    "Italy",
+    "Spain"
+];
+
+// =====================
+// INIT (VERY IMPORTANT)
+// =====================
+document.addEventListener("DOMContentLoaded", () => {
+
+    // GET ELEMENTS
+    nameInput = document.getElementById("name");
+    countryInput = document.getElementById("country");
+    countryModal = document.getElementById("countryModal");
+    countryOptions = document.getElementById("countryOptions");
+
+    menu = document.getElementById("menu");
+    login = document.getElementById("login");
+    chat = document.getElementById("chat");
+    chatTitle = document.getElementById("chatTitle");
+    messages = document.getElementById("messages");
+    msgInput = document.getElementById("msg");
+    welcome = document.getElementById("welcome");
+    usersDiv = document.getElementById("users");
+    serversDiv = document.getElementById("servers");
+
+    // SEARCH
+    const search = document.getElementById("countrySearch");
+    if (search) {
+        search.addEventListener("input", (e) => {
+            renderCountries(e.target.value);
+        });
+    }
+
+    // CLOSE MODAL
+    countryModal.addEventListener("click", (e) => {
+        if (e.target.id === "countryModal") {
+            countryModal.classList.add("hidden");
+        }
+    });
+
+});
+
+// =====================
+// COUNTRY PICKER (FIXED)
+// =====================
+function openCountryPicker() {
+    if (!countryOptions) return;
+
+    countryModal.classList.remove("hidden");
+
+    // small delay ensures DOM is ready
+    setTimeout(() => {
+        renderCountries();
+    }, 0);
+}
+window.openCountryPicker = openCountryPicker;
+
+function renderCountries(filter = "") {
+    if (!countryOptions) return;
+
+    countryOptions.innerHTML = "";
+
+    const filtered = countries.filter(c =>
+        c.toLowerCase().includes(filter.toLowerCase())
+    );
+
+    if (filtered.length === 0) {
+        countryOptions.innerHTML = "<div class='country-item'>No results</div>";
+        return;
+    }
+
+    filtered.forEach(c => {
+        const div = document.createElement("div");
+        div.className = "country-item";
+        div.innerText = c;
+
+        div.onclick = () => {
+            countryInput.value = c;
+            countryModal.classList.add("hidden");
+        };
+
+        countryOptions.appendChild(div);
+    });
+}
+
 // =====================
 // JOIN
 // =====================
 function join() {
-    const name = nameInput.value.trim();
-    const country = countryInput.value.trim();
+    const name = nameInput?.value.trim();
+    const country = countryInput?.value.trim();
 
     if (!name || !country) {
         alert("Fill all fields!");
@@ -67,7 +170,7 @@ function openChat(title) {
 }
 
 // =====================
-// SEND MESSAGE
+// SEND
 // =====================
 function send() {
     const msg = msgInput.value.trim();
@@ -90,7 +193,7 @@ function send() {
 window.send = send;
 
 // =====================
-// ADD MESSAGE
+// MESSAGES
 // =====================
 function addMsg(data) {
     const div = document.createElement("div");
@@ -110,7 +213,6 @@ socket.on("publicMessage", addMsg);
 socket.on("privateMessage", addMsg);
 socket.on("serverMessage", addMsg);
 
-// USERS LIST
 socket.on("userList", (users) => {
     usersDiv.innerHTML = "";
 
@@ -129,14 +231,12 @@ socket.on("userList", (users) => {
     });
 });
 
-// PRIVATE JOIN
 socket.on("privateJoined", (room) => {
     currentRoom = room;
     mode = "private";
     openChat("Private Chat");
 });
 
-// SERVERS
 socket.on("serverList", (servers) => {
     serversDiv.innerHTML = "";
 
@@ -154,82 +254,4 @@ socket.on("serverList", (servers) => {
 
         serversDiv.appendChild(div);
     });
-});
-
-// =====================
-// COUNTRY PICKER (FIXED)
-// =====================
-const countries = [
-    "Indonesia",
-    "United States",
-    "Japan",
-    "Germany",
-    "France",
-    "Lebanon"
-];
-
-function openCountryPicker() {
-    countryModal.classList.remove("hidden");
-    renderCountries();
-}
-window.openCountryPicker = openCountryPicker;
-
-function renderCountries(filter = "") {
-    countryOptions.innerHTML = "";
-
-    countries
-        .filter(c => c.toLowerCase().includes(filter.toLowerCase()))
-        .forEach(c => {
-            const div = document.createElement("div");
-            div.className = "country-item";
-            div.innerText = c;
-
-            div.onclick = () => {
-                countryInput.value = c;
-                countryModal.classList.add("hidden");
-            };
-
-            countryOptions.appendChild(div);
-        });
-}
-
-// =====================
-// DOM SETUP (VERY IMPORTANT)
-// =====================
-document.addEventListener("DOMContentLoaded", () => {
-
-    // INPUTS
-    window.nameInput = document.getElementById("name");
-    window.countryInput = document.getElementById("country");
-
-    // COUNTRY MODAL
-    window.countryModal = document.getElementById("countryModal");
-    window.countryOptions = document.getElementById("countryOptions");
-
-    // UI
-    window.menu = document.getElementById("menu");
-    window.login = document.getElementById("login");
-    window.chat = document.getElementById("chat");
-    window.chatTitle = document.getElementById("chatTitle");
-    window.messages = document.getElementById("messages");
-    window.msgInput = document.getElementById("msg");
-    window.welcome = document.getElementById("welcome");
-    window.usersDiv = document.getElementById("users");
-    window.serversDiv = document.getElementById("servers");
-
-    // SEARCH
-    const search = document.getElementById("countrySearch");
-    if (search) {
-        search.addEventListener("input", (e) => {
-            renderCountries(e.target.value);
-        });
-    }
-
-    // CLOSE MODAL
-    countryModal.addEventListener("click", (e) => {
-        if (e.target.id === "countryModal") {
-            countryModal.classList.add("hidden");
-        }
-    });
-
 });
